@@ -12,43 +12,78 @@ import org.http4s._
 class Bencher {
 
   @Benchmark
-  def lastMany: IO[Response[IO]] = {
-    HelloWorldServer.CMany.run(Bencher.routes(19))
-  }
-
-  @Benchmark
-  def lastTwo: IO[Response[IO]] = {
-    HelloWorldServer.CTwo.run(Bencher.routes(19))
-  }
-
-  @Benchmark
   def firstMany: IO[Response[IO]] = {
-    HelloWorldServer.CMany.run(Bencher.routes(0))
+    HelloWorldServer.CMany.run(Bencher.first)
   }
 
   @Benchmark
   def firstTwo: IO[Response[IO]] = {
-    HelloWorldServer.CTwo.run(Bencher.routes(0))
+    HelloWorldServer.CTwo.run(Bencher.first)
   }
 
   @Benchmark
-  def middleTwo: IO[Response[IO]] = {
-    HelloWorldServer.CTwo.run(Bencher.routes(10))
+  def secondTwo: IO[Response[IO]] = {
+    HelloWorldServer.CTwo.run(Bencher.second)
   }
 
   @Benchmark
-  def middleMany: IO[Response[IO]] = {
-    HelloWorldServer.CMany.run(Bencher.routes(10))
+  def secondMany: IO[Response[IO]] = {
+    HelloWorldServer.CMany.run(Bencher.second)
+  }
+
+  @Benchmark
+  def thirdTwo: IO[Response[IO]] = {
+    HelloWorldServer.CTwo.run(Bencher.third)
+  }
+
+  @Benchmark
+  def thirdMany: IO[Response[IO]] = {
+    HelloWorldServer.CMany.run(Bencher.third)
+  }
+
+  @Benchmark
+  def tenthTwo: IO[Response[IO]] = {
+    HelloWorldServer.CTwo.run(Bencher.tenth)
+  }
+
+  @Benchmark
+  def tenthMany: IO[Response[IO]] = {
+    HelloWorldServer.CMany.run(Bencher.tenth)
+  }
+
+  @Benchmark
+  def eleventhTwo: IO[Response[IO]] = {
+    HelloWorldServer.CTwo.run(Bencher.eleventh)
+  }
+
+  @Benchmark
+  def eleventhMany: IO[Response[IO]] = {
+    HelloWorldServer.CMany.run(Bencher.eleventh)
+  }
+
+  @Benchmark
+  def lastMany: IO[Response[IO]] = {
+    HelloWorldServer.CMany.run(Bencher.last)
+  }
+
+  @Benchmark
+  def lastTwo: IO[Response[IO]] = {
+    HelloWorldServer.CTwo.run(Bencher.last)
   }
 
 }
 
 object Bencher {
-  val routes: Array[Request[IO]] =
-    Array.range(1, 21).map { i =>
-      if (i % 2 == 0)
-        Request[IO](uri = Uri(path = s"/route$i/route$i$i/route$i$i$i/LOL"))
-      else
-        Request[IO](uri = Uri(path = s"/route$i/route$i$i/hi"))
-    }
+  val first: Request[IO] =
+    Request[IO](uri = Uri(path = s"/route1/route11/hi"))
+  val second: Request[IO] =
+    Request[IO](uri = Uri(path = s"/route2/route22/route222/hi"))
+  val third: Request[IO] =
+    Request[IO](uri = Uri(path = s"/route3/route33/hi"))
+  val tenth: Request[IO] =
+    Request[IO](uri = Uri(path = s"/route10/route1010/route101010/hi"))
+  val eleventh: Request[IO] =
+    Request[IO](uri = Uri(path = s"/route11/route1111/hi"))
+  val last: Request[IO] =
+    Request[IO](uri = Uri(path = s"/route20/route2020/route202020/hi"))
 }
