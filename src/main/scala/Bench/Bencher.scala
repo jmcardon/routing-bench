@@ -1,7 +1,5 @@
 package Bench
 import java.util.concurrent.TimeUnit
-import javax.crypto
-import javax.crypto.Cipher
 
 import cats.effect.IO
 import org.openjdk.jmh.annotations._
