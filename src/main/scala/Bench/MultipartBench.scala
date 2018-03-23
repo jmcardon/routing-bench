@@ -13,14 +13,14 @@ import org.http4s.multipart._
 
 @State(Scope.Thread)
 @BenchmarkMode(Array(Mode.Throughput))
-@OutputTimeUnit(TimeUnit.MILLISECONDS)
+@OutputTimeUnit(TimeUnit.SECONDS)
 class MultipartBench {
   import MultipartBench._
 
   @Benchmark
-  def oldMultipartStrict: Multipart[IO] = {
+  def smalloldMultipart: Multipart[IO] = {
     encoderLive
-      .decode(request, true)
+      .decode(requestSmall, false)
       .value
       .unsafeRunSync() match {
       case Right(r) => r
@@ -29,9 +29,9 @@ class MultipartBench {
   }
 
   @Benchmark
-  def newMultipartStrict: Multipart[IO] = {
+  def smallnewMultipart: Multipart[IO] = {
     encoderNew
-      .decode(request, true)
+      .decode(requestSmall, false)
       .value
       .unsafeRunSync() match {
       case Right(r) => r
@@ -40,9 +40,9 @@ class MultipartBench {
   }
 
   @Benchmark
-  def oldMultipartNotStrict: Multipart[IO] = {
+  def bigoldMultipart: Multipart[IO] = {
     encoderLive
-      .decode(request, false)
+      .decode(requestLarge, false)
       .value
       .unsafeRunSync() match {
       case Right(r) => r
@@ -51,9 +51,9 @@ class MultipartBench {
   }
 
   @Benchmark
-  def newMultipartNotStrict: Multipart[IO] = {
+  def bignewMultipart: Multipart[IO] = {
     encoderNew
-      .decode(request, false)
+      .decode(requestLarge, false)
       .value
       .unsafeRunSync() match {
       case Right(r) => r
@@ -64,26 +64,46 @@ class MultipartBench {
 }
 
 object MultipartBench {
-  val dumbBody: Stream[IO, Byte] =
+  val boundary = Boundary("----WebKitFormBoundarycaZFo8IAKVROTEeD")
+
+  val dumbBodyLarge: Stream[IO, Byte] =
     Stream
       .emits(
         List.fill(1000)("REEEEEEEEEEEEEEEEEE".getBytes()).flatMap(_.toList))
       .covary[IO]
 
-  val boundary =  Boundary("----WebKitFormBoundarycaZFo8IAKVROTEeD")
-
   val bodyLarge: Multipart[IO] = Multipart[IO](
     Vector.fill(100)(
       Part[IO](Headers(Header("Content-Type", "text/plain"),
                        Header("Content-Type", "text/plain")),
-               dumbBody)),
+               dumbBodyLarge)),
     Boundary("----WebKitFormBoundarycaZFo8IAKVROTEeD")
   )
 
-  val byteStream: EntityBody[IO] =
+  val dumbBodySmall: Stream[IO, Byte] =
+    Stream
+      .emits(List.fill(10)("REEEEEEEEEEEEEEEEEE".getBytes()).flatMap(_.toList))
+      .covary[IO]
+
+  val bodySmall: Multipart[IO] = Multipart[IO](
+    Vector.fill(10)(
+      Part[IO](Headers(Header("Content-Type", "text/plain"),
+                       Header("Content-Type", "text/plain")),
+               dumbBodySmall)),
+    Boundary("----WebKitFormBoundarycaZFo8IAKVROTEeD")
+  )
+
+  val byteStreamLarge: EntityBody[IO] =
     EntityEncoder.multipartEncoder[IO].toEntity(bodyLarge).unsafeRunSync.body
 
-  val request = Request[IO](body = byteStream, headers = bodyLarge.headers)
+  val byteStreamSmall: EntityBody[IO] =
+    EntityEncoder.multipartEncoder[IO].toEntity(bodySmall).unsafeRunSync.body
+
+  val requestLarge: Request[IO] =
+    Request[IO](body = byteStreamLarge, headers = bodyLarge.headers)
+
+  val requestSmall: Request[IO] =
+    Request[IO](body = byteStreamSmall, headers = bodySmall.headers)
 
   val encoderLive: EntityDecoder[IO, Multipart[IO]] =
     EntityDecoder.multipart[IO]
