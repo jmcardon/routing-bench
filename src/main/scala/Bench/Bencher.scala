@@ -12,63 +12,63 @@ import org.http4s._
 class Bencher {
 
   @Benchmark
-  def firstMany: IO[Response[IO]] = {
-    HelloWorldServer.CMany.run(Bencher.first)
+  def firstMany: Response[IO] = {
+    HelloWorldServer.CMany.run(Bencher.first).unsafeRunSync()
   }
 
   @Benchmark
-  def firstTwo: IO[Response[IO]] = {
-    HelloWorldServer.CTwo.run(Bencher.first)
+  def firstTwo: Response[IO] = {
+    HelloWorldServer.CTwo.run(Bencher.first).unsafeRunSync()
   }
 
   @Benchmark
-  def secondTwo: IO[Response[IO]] = {
-    HelloWorldServer.CTwo.run(Bencher.second)
+  def secondTwo: Response[IO] = {
+    HelloWorldServer.CTwo.run(Bencher.second).unsafeRunSync()
   }
 
   @Benchmark
-  def secondMany: IO[Response[IO]] = {
-    HelloWorldServer.CMany.run(Bencher.second)
+  def secondMany: Response[IO] = {
+    HelloWorldServer.CMany.run(Bencher.second).unsafeRunSync()
   }
 
   @Benchmark
-  def thirdTwo: IO[Response[IO]] = {
-    HelloWorldServer.CTwo.run(Bencher.third)
+  def thirdTwo: Response[IO] = {
+    HelloWorldServer.CTwo.run(Bencher.third).unsafeRunSync()
   }
 
   @Benchmark
-  def thirdMany: IO[Response[IO]] = {
-    HelloWorldServer.CMany.run(Bencher.third)
+  def thirdMany: Response[IO] = {
+    HelloWorldServer.CMany.run(Bencher.third).unsafeRunSync()
   }
 
   @Benchmark
-  def tenthTwo: IO[Response[IO]] = {
-    HelloWorldServer.CTwo.run(Bencher.tenth)
+  def tenthTwo: Response[IO] = {
+    HelloWorldServer.CTwo.run(Bencher.tenth).unsafeRunSync()
   }
 
   @Benchmark
-  def tenthMany: IO[Response[IO]] = {
-    HelloWorldServer.CMany.run(Bencher.tenth)
+  def tenthMany: Response[IO] = {
+    HelloWorldServer.CMany.run(Bencher.tenth).unsafeRunSync()
   }
 
   @Benchmark
-  def eleventhTwo: IO[Response[IO]] = {
-    HelloWorldServer.CTwo.run(Bencher.eleventh)
+  def eleventhTwo: Response[IO] = {
+    HelloWorldServer.CTwo.run(Bencher.eleventh).unsafeRunSync()
   }
 
   @Benchmark
-  def eleventhMany: IO[Response[IO]] = {
-    HelloWorldServer.CMany.run(Bencher.eleventh)
+  def eleventhMany: Response[IO] = {
+    HelloWorldServer.CMany.run(Bencher.eleventh).unsafeRunSync()
   }
 
   @Benchmark
-  def lastMany: IO[Response[IO]] = {
-    HelloWorldServer.CMany.run(Bencher.last)
+  def lastMany: Response[IO] = {
+    HelloWorldServer.CMany.run(Bencher.last).unsafeRunSync()
   }
 
   @Benchmark
-  def lastTwo: IO[Response[IO]] = {
-    HelloWorldServer.CTwo.run(Bencher.last)
+  def lastTwo: Response[IO] = {
+    HelloWorldServer.CTwo.run(Bencher.last).unsafeRunSync()
   }
 
 }
