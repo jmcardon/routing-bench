@@ -165,57 +165,6 @@ object HelloWorldServer extends StreamApp[IO] with Http4sDsl[IO] {
               .fold("")(_ ++ _)
               .flatMap(f => IO(println(f))))
         .flatMap(_ => Ok())
-
-    case r @ POST -> Root / "h0" =>
-      encoderLive
-        .decode(r, false)
-        .value
-        .flatMap(_.fold[IO[Multipart[IO]]](IO.raiseError, IO.pure))
-        .flatMap(
-          p =>
-            p.parts(0)
-              .body
-              .through(fs2.text.utf8Decode)
-              .compile
-              .fold("")(_ ++ _)
-              .flatMap(f => IO(println(f))))
-        .flatMap(_ => Ok())
-
-    case r @ POST -> Root / "hee" =>
-      r.contentType.flatMap(_.mediaType.extensions.get("boundary")) match {
-        case Some(b) =>
-          r.body
-            .through(MultipartParser1
-              .parseStreamed[IO](Boundary(b)))
-            .evalMap { f =>
-              f.parts(0)
-                .body
-                .through(fs2.text.utf8Decode)
-                .compile
-                .fold("")(_ ++ _)
-                .flatMap(f => IO(println(f)))
-            }
-            .compile
-            .drain
-            .flatMap(_ => Ok())
-
-        case None =>
-          BadRequest()
-      }
-//      encoderLive
-//        .decode(r, false)
-//        .value
-//        .flatMap(_.fold[IO[Multipart[IO]]](IO.raiseError, IO.pure))
-//        .flatMap(
-//          p =>
-//            p.parts(0)
-//              .body
-//              .through(fs2.text.utf8Decode)
-//              .compile
-//              .fold("")(_ ++ _)
-//              .flatMap(f => IO(println(f))))
-//        .flatMap(_ => Ok())
-
   }
 
   def stream(args: List[String], requestShutdown: IO[Unit]) =
