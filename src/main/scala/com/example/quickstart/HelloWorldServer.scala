@@ -2,8 +2,8 @@ package com.example.quickstart
 
 import cats.data.Kleisli
 import cats.effect.IO
-import fs2.StreamApp
 import io.circe._
+import fs2._
 import org.http4s._
 import org.http4s.circe._
 import org.http4s.dsl.Http4sDsl
@@ -11,6 +11,7 @@ import org.http4s.server.blaze.BlazeBuilder
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import cats.syntax.all._
+import org.http4s.multipart.{Boundary, Multipart}
 import org.http4s.syntax.all._
 
 object HelloWorldServer extends StreamApp[IO] with Http4sDsl[IO] {
@@ -143,9 +144,83 @@ object HelloWorldServer extends StreamApp[IO] with Http4sDsl[IO] {
 
   val CTwo: Kleisli[IO, Request[IO], Response[IO]] = composedBig2.orNotFound
 
+  val encoderNew: EntityDecoder[IO, Multipart[IO]] =
+    MultipartParser1.decoder[IO]
+
+  val encoderLive: EntityDecoder[IO, Multipart[IO]] =
+    EntityDecoder.multipart[IO]
+
+  val yoloService: HttpService[IO] = HttpService[IO] {
+    case r @ POST -> Root / "hi" =>
+      encoderNew
+        .decode(r, false)
+        .value
+        .flatMap(_.fold[IO[Multipart[IO]]](IO.raiseError, IO.pure))
+        .flatMap(
+          p =>
+            p.parts(0)
+              .body
+              .through(fs2.text.utf8Decode)
+              .compile
+              .fold("")(_ ++ _)
+              .flatMap(f => IO(println(f))))
+        .flatMap(_ => Ok())
+
+    case r @ POST -> Root / "h0" =>
+      encoderLive
+        .decode(r, false)
+        .value
+        .flatMap(_.fold[IO[Multipart[IO]]](IO.raiseError, IO.pure))
+        .flatMap(
+          p =>
+            p.parts(0)
+              .body
+              .through(fs2.text.utf8Decode)
+              .compile
+              .fold("")(_ ++ _)
+              .flatMap(f => IO(println(f))))
+        .flatMap(_ => Ok())
+
+    case r @ POST -> Root / "hee" =>
+      r.contentType.flatMap(_.mediaType.extensions.get("boundary")) match {
+        case Some(b) =>
+          r.body
+            .through(MultipartParser1
+              .parseStreamed[IO](Boundary(b)))
+            .evalMap { f =>
+              f.parts(0)
+                .body
+                .through(fs2.text.utf8Decode)
+                .compile
+                .fold("")(_ ++ _)
+                .flatMap(f => IO(println(f)))
+            }
+            .compile
+            .drain
+            .flatMap(_ => Ok())
+
+        case None =>
+          BadRequest()
+      }
+//      encoderLive
+//        .decode(r, false)
+//        .value
+//        .flatMap(_.fold[IO[Multipart[IO]]](IO.raiseError, IO.pure))
+//        .flatMap(
+//          p =>
+//            p.parts(0)
+//              .body
+//              .through(fs2.text.utf8Decode)
+//              .compile
+//              .fold("")(_ ++ _)
+//              .flatMap(f => IO(println(f))))
+//        .flatMap(_ => Ok())
+
+  }
+
   def stream(args: List[String], requestShutdown: IO[Unit]) =
     BlazeBuilder[IO]
       .bindHttp(8080, "0.0.0.0")
-      .mountService(service, "/")
+      .mountService(yoloService, "/")
       .serve
 }
