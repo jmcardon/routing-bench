@@ -14,7 +14,7 @@ object LazySemigroupK {
     new SemigroupK[Kleisli[F, A, ?]] {
       override def combineK[B](x: Kleisli[F, A, B],
                                y: Kleisli[F, A, B]): Kleisli[F, A, B] =
-        Kleisli(a => F0.combineK(x.run(a), F1.suspend(y.run(a))))
+        Kleisli(a => F0.combineK(F1.suspend(x.run(a)), F1.suspend(y.run(a))))
     }
 
   val composedMany: HttpService[IO] =
