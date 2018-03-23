@@ -120,7 +120,7 @@ object MultipartBench {
         .covary[IO]
 
     val ree: Multipart[IO] = Multipart[IO](
-      Vector.fill(10)(
+      Vector.fill(numParts)(
         Part[IO](Headers(Header("Content-Type", "text/plain"),
                          Header("Content-Type", "text/plain")),
                  normies)),
