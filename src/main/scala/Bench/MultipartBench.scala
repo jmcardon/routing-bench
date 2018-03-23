@@ -110,99 +110,44 @@ class MultipartBench {
 object MultipartBench {
   val boundary = Boundary("----WebKitFormBoundarycaZFo8IAKVROTEeD")
 
-  val dumbBodySmall: Stream[IO, Byte] =
-    Stream
-      .emits(List.fill(10)("REEEEEEEEEEEEEEEEEE".getBytes()).flatMap(_.toList))
-      .covary[IO]
+  def createRequest(numBody: Int, numParts: Int) = {
+    val normies: Stream[IO, Byte] =
+      Stream
+        .emits(
+          List
+            .fill(numBody)("REEEEEEEEEEEEEEEEEE".getBytes())
+            .flatMap(_.toList))
+        .covary[IO]
 
-  val dumbBodyMedium: Stream[IO, Byte] =
-    Stream
-      .emits(List.fill(50)("REEEEEEEEEEEEEEEEEE".getBytes()).flatMap(_.toList))
-      .covary[IO]
+    val ree: Multipart[IO] = Multipart[IO](
+      Vector.fill(10)(
+        Part[IO](Headers(Header("Content-Type", "text/plain"),
+                         Header("Content-Type", "text/plain")),
+                 normies)),
+      Boundary("----WebKitFormBoundarycaZFo8IAKVROTEeD")
+    )
 
-  val dumbBodyLarge: Stream[IO, Byte] =
-    Stream
-      .emits(
-        List.fill(1000)("REEEEEEEEEEEEEEEEEE".getBytes()).flatMap(_.toList))
-      .covary[IO]
+    val tendies: EntityBody[IO] =
+      EntityEncoder
+        .multipartEncoder[IO]
+        .toEntity(ree)
+        .unsafeRunSync
+        .body
 
-  val dumbBodyHyooge: Stream[IO, Byte] =
-    Stream
-      .emits(
-        List.fill(100000)("REEEEEEEEEEEEEEEEEE".getBytes()).flatMap(_.toList))
-      .covary[IO]
-
-  val multipartSmall: Multipart[IO] = Multipart[IO](
-    Vector.fill(10)(
-      Part[IO](Headers(Header("Content-Type", "text/plain"),
-                       Header("Content-Type", "text/plain")),
-               dumbBodySmall)),
-    Boundary("----WebKitFormBoundarycaZFo8IAKVROTEeD")
-  )
-
-  val multipartMedium: Multipart[IO] = Multipart[IO](
-    Vector.fill(50)(
-      Part[IO](Headers(Header("Content-Type", "text/plain"),
-                       Header("Content-Type", "text/plain")),
-               dumbBodyMedium)),
-    Boundary("----WebKitFormBoundarycaZFo8IAKVROTEeD")
-  )
-
-  val multipartLarge: Multipart[IO] = Multipart[IO](
-    Vector.fill(100)(
-      Part[IO](Headers(Header("Content-Type", "text/plain"),
-                       Header("Content-Type", "text/plain")),
-               dumbBodyLarge)),
-    Boundary("----WebKitFormBoundarycaZFo8IAKVROTEeD")
-  )
-
-  val multipartHyooge: Multipart[IO] = Multipart[IO](
-    Vector.fill(10)(
-      Part[IO](Headers(Header("Content-Type", "text/plain"),
-                       Header("Content-Type", "text/plain")),
-               dumbBodyHyooge)),
-    Boundary("----WebKitFormBoundarycaZFo8IAKVROTEeD")
-  )
-
-  val byteStreamLarge: EntityBody[IO] =
-    EntityEncoder
-      .multipartEncoder[IO]
-      .toEntity(multipartLarge)
-      .unsafeRunSync
-      .body
-
-  val byteStreamSmall: EntityBody[IO] =
-    EntityEncoder
-      .multipartEncoder[IO]
-      .toEntity(multipartSmall)
-      .unsafeRunSync
-      .body
-
-  val byteStreamMedium: EntityBody[IO] =
-    EntityEncoder
-      .multipartEncoder[IO]
-      .toEntity(multipartMedium)
-      .unsafeRunSync
-      .body
-
-  val byteStreamHyooge: EntityBody[IO] =
-    EntityEncoder
-      .multipartEncoder[IO]
-      .toEntity(multipartHyooge)
-      .unsafeRunSync
-      .body
+    Request[IO](body = tendies, headers = ree.headers)
+  }
 
   val requestLarge: Request[IO] =
-    Request[IO](body = byteStreamLarge, headers = multipartLarge.headers)
+    createRequest(1000, 100)
 
   val requestSmall: Request[IO] =
-    Request[IO](body = byteStreamSmall, headers = multipartSmall.headers)
+    createRequest(10, 10)
 
   val requestMedium: Request[IO] =
-    Request[IO](body = byteStreamMedium, headers = multipartMedium.headers)
+    createRequest(500, 50)
 
   val requestHyooge: Request[IO] =
-    Request[IO](body = byteStreamHyooge, headers = multipartHyooge.headers)
+    createRequest(10000, 10)
 
   val encoderLive: EntityDecoder[IO, Multipart[IO]] =
     EntityDecoder.multipart[IO]
