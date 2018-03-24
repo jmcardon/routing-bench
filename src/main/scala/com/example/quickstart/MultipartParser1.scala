@@ -61,19 +61,19 @@ object MultipartParser1 {
     in.flatMap(c => tailRecAsciiCheck(0, c.toArray))
   }
 
-  private val CRLFBytes = Array[Byte]('\r', '\n')
-  private val DoubleCRLFBytes = Array[Byte]('\r', '\n', '\r', '\n')
-  private val DashDashBytes = Array[Byte]('-', '-')
-  private val boundaryBytesR: Boundary => Array[Byte] = boundary =>
+  private val CRLFBytesN = Array[Byte]('\r', '\n')
+  private val DoubleCRLFBytesN = Array[Byte]('\r', '\n', '\r', '\n')
+  private val DashDashBytesN = Array[Byte]('-', '-')
+  private val BoundaryBytesN: Boundary => Array[Byte] = boundary =>
     boundary.value.getBytes("UTF-8")
-  val startLineBytesR: Boundary => Array[Byte] =
-    boundaryBytesR.andThen(DashDashBytes ++ _)
+  val StartLineBytesN: Boundary => Array[Byte] =
+    BoundaryBytesN.andThen(DashDashBytesN ++ _)
 
-  private val expectedBytesR: Boundary => Array[Byte] =
-    boundaryBytesR.andThen(CRLFBytes ++ DashDashBytes ++ _)
+  private val ExpectedBytesN: Boundary => Array[Byte] =
+    BoundaryBytesN.andThen(CRLFBytesN ++ DashDashBytesN ++ _)
 
-  private val endlineBytesR: Boundary => Array[Byte] =
-    boundaryBytesR.andThen(CRLFBytes ++ DashDashBytes ++ _ ++ DashDashBytes)
+  private val EndlineBytesN: Boundary => Array[Byte] =
+    BoundaryBytesN.andThen(CRLFBytesN ++ DashDashBytesN ++ _ ++ DashDashBytesN)
 
   def parseStreamed[F[_]: Sync](
       boundary: Boundary,
@@ -240,7 +240,7 @@ object MultipartParser1 {
   private def ignorePreludeStage[F[_]: Sync](b: Boundary,
                                              stream: Stream[F, Byte],
                                              limit: Int): Stream[F, Part[F]] = {
-    val values = startLineBytesR(b)
+    val values = StartLineBytesN(b)
 
     def go(s: Stream[F, Byte],
            state: Int,
@@ -271,7 +271,7 @@ object MultipartParser1 {
 
   private def parseToPartStreamed[F[_]: Sync](s: Stream[F, Byte],
                                               limit: Int): Stream[F, Part[F]] =
-    splitLimited[F](DoubleCRLFBytes, s, limit).flatMap {
+    splitLimited[F](DoubleCRLFBytesN, s, limit).flatMap {
       case (l, r) =>
         l.pull.uncons.flatMap {
           case None =>
@@ -287,7 +287,7 @@ object MultipartParser1 {
       strim: Stream[F, Byte]): Stream[F, Headers] = {
     def tailrecParse(s: Stream[F, Byte],
                      headers: Headers): Pull[F, Headers, Unit] =
-      splitHalf[F](CRLFBytes, s).flatMap {
+      splitHalf[F](CRLFBytesN, s).flatMap {
         case (l, r) =>
           l.through(asciiDecode)
             .fold("")(_ ++ _)
@@ -317,8 +317,8 @@ object MultipartParser1 {
       s: Stream[F, Byte],
       limit: Int
   ): Stream[F, Part[F]] = {
-    val endlineBytes = endlineBytesR(boundary)
-    val values = expectedBytesR(boundary)
+    val endlineBytes = EndlineBytesN(boundary)
+    val values = ExpectedBytesN(boundary)
     splitOrFail[F](endlineBytes, s).flatMap {
       case (l, _) =>
         streamStageParsePart[F](boundary,
@@ -345,15 +345,6 @@ object MultipartParser1 {
         }
     }.stream
 
-  //  private def checkLast[F[_]: Sync](s: Stream[F, Byte]): Stream[F, Part[F]] =
-  //    s.take(2).fold("")(_ + _.toChar).flatMap { s =>
-  //      if (s == "--") {
-  //        Stream.empty
-  //      } else {
-  //        Stream.raiseError(MalformedMessageBodyFailure("Invalid closing boundary"))
-  //      }
-  //    }
-
   private def tailrecParts[F[_]: Sync](
       b: Boundary,
       values: Array[Byte],
@@ -367,7 +358,6 @@ object MultipartParser1 {
           r.pull.uncons.flatMap {
             case None =>
               Pull.done
-            //            checkLast[F](l).pull.echo
             case Some(_) =>
               tailrecParts[F](b, values, l, r, limit)
           }
