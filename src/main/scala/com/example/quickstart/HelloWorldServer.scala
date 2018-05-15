@@ -149,9 +149,6 @@ object HelloWorldServer extends StreamApp[IO] with Http4sDsl[IO] {
 
   val CTwo: Kleisli[IO, Request[IO], Response[IO]] = composedBig2.orNotFound
 
-  val encoderNew: EntityDecoder[IO, Multipart[IO]] =
-    MultipartParser2.decoder[IO]
-
   val encoderLive: EntityDecoder[IO, Multipart[IO]] =
     EntityDecoder.multipart[IO]
 

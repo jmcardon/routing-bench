@@ -61,6 +61,7 @@ object MultipartParser1 {
     in.flatMap(c => tailRecAsciiCheck(0, c.toArray))
   }
 
+
   private[this] val CRLFBytesN = Array[Byte]('\r', '\n')
   private[this] val DoubleCRLFBytesN = Array[Byte]('\r', '\n', '\r', '\n')
   private[this] val DashDashBytesN = Array[Byte]('-', '-')
@@ -71,7 +72,8 @@ object MultipartParser1 {
   private[this] val ExpectedBytesN: Boundary => Array[Byte] =
     BoundaryBytesN.andThen(CRLFBytesN ++ DashDashBytesN ++ _)
   private[this] val dashByte: Byte = '-'.toByte
-  private[this] val cachedEmpty = Stream.empty
+  private[this] val streamEmpty = Stream.empty
+  private[this] val PullUnit = Pull.pure[Pure, Unit](())
 
   private type SplitStream[F[_]] = Pull[F, Nothing, (Stream[F, Byte], Stream[F, Byte])]
 
@@ -152,17 +154,9 @@ object MultipartParser1 {
 
   /** Split a chunk in the case of a partial match:
     *
-    * If it is a chunk that is between a partial match
-    * (middle chunked), the prior partial match is added to
-    * the accumulator, and the current partial match is
-    * considered to carry over.
-    *
-    * If it is a fresh chunk (no carry over partial match),
-    * everything prior to the partial match is added to the accumulator,
-    * and the partial match is considered the carry over.
-    *
-    * Else, if the whole block is a partial match,
-    * add it to the carry over
+    * DO NOT USE. Was made private because
+    * Jose messed up hard like 5 patches ago and now it breaks bincompat to
+    * remove.
     *
     */
   private def splitPartialMatch[F[_]: Sync](
@@ -265,10 +259,10 @@ object MultipartParser1 {
 
   /** The first part of our streaming stages:
     *
-    * Ignore the prelude and remove the first boundary
-    *
+    * Ignore the prelude and remove the first boundary. Only traverses until the first
+    * part
     */
-  private def ignorePrelude[F[_]: Sync](
+  private[this] def ignorePrelude[F[_]: Sync](
     b: Boundary,
     stream: Stream[F, Byte],
     limit: Int): Stream[F, Part[F]] = {
@@ -297,6 +291,14 @@ object MultipartParser1 {
     }.stream
   }
 
+  /**
+    *
+    * @param boundary
+    * @param s
+    * @param limit
+    * @tparam F
+    * @return
+    */
   private def pullParts[F[_]: Sync](
     boundary: Boundary,
     s: Stream[F, Byte],
@@ -307,56 +309,73 @@ object MultipartParser1 {
 
     splitOrFinish[F](values, s, limit).flatMap {
       case (l, r) =>
-        if (r == cachedEmpty) { //We can abuse reference equality here for efficiency
+        //We can abuse reference equality here for efficiency
+        //Since `splitOrFinish` returns `empty` on a capped stream
+        //However, we must have at least one part, so `splitOrFinish` on this function
+        //Indicates an error
+        if (r == streamEmpty) {
           Pull.raiseError(MalformedMessageBodyFailure("Cannot parse empty stream"))
         } else {
-          tailrecParts2[F](boundary, l, r, expectedBytes, limit)
+          tailrecParts[F](boundary, l, r, expectedBytes, limit)
         }
     }
   }
 
-  private def tailrecParts2[F[_]: Sync](
+  private def tailrecParts[F[_]: Sync](
     b: Boundary,
     headerStream: Stream[F, Byte],
     rest: Stream[F, Byte],
     expectedBytes: Array[Byte],
     limit: Int): Pull[F, Part[F], Unit] =
     Pull
-      .eval(parseHeadersF(headerStream))
+      .eval(parseHeaders(headerStream))
       .flatMap { hdrs =>
         splitHalf(expectedBytes, rest).flatMap {
           case (l, r) =>
-            if (r == cachedEmpty) {
+            //We hit a boundary, but the rest of the stream is empty
+            //and thus it's not a properly capped multipart body
+            if (r == streamEmpty) {
               Pull.raiseError(MalformedMessageBodyFailure("Part not terminated properly"))
             } else {
               Pull.output1(Part[F](hdrs, l)) >> splitOrFinish(DoubleCRLFBytesN, r, limit).flatMap {
                 case (hdrStream, remaining) =>
-                  if (hdrStream == cachedEmpty) { //Empty returned if it worked fine
+                  if (hdrStream == streamEmpty) { //Empty returned if it worked fine
                     Pull.done
                   } else {
-                    tailrecParts2[F](b, hdrStream, remaining, expectedBytes, limit)
+                    tailrecParts[F](b, hdrStream, remaining, expectedBytes, limit)
                   }
               }
             }
         }
       }
 
+  /** Split a stream in half based on `values`,
+    * but check if it is either double dash terminated (end of multipart).
+    * SplitOrFinish also tracks a header limit size
+    *
+    * If it is, return the empty stream. if it is not, split on the `values`
+    * and raise an error if we lack a match
+    */
   //noinspection ScalaStyle
   private def splitOrFinish[F[_]: Sync](
     values: Array[Byte],
     stream: Stream[F, Byte],
     limit: Int): SplitStream[F] = {
 
+    /** Check if a particular chunk a final chunk, that is,
+      * whether it's the boundary plus an extra "--", indicating it's
+      * the last boundary
+      */
     def checkIfLast(c: Chunk[Byte], rest: Stream[F, Byte]): SplitStream[F] =
       if (c.size <= 0) {
-        Pull.raiseError(MalformedMessageBodyFailure("empty chunk"))
+        Pull.raiseError(MalformedMessageBodyFailure("Invalid Chunk: Chunk is empty"))
       } else if (c.size == 1) {
         rest.pull.unconsChunk.flatMap {
           case Some((chnk, remaining)) =>
             if (chnk.size <= 0)
-              Pull.raiseError(MalformedMessageBodyFailure("empty chunk"))
+              Pull.raiseError(MalformedMessageBodyFailure("Invalid Chunk: Chunk is empty"))
             else if (c(0) == dashByte && chnk(0) == dashByte) {
-              Pull.pure((cachedEmpty, cachedEmpty))
+              Pull.pure((streamEmpty, streamEmpty))
             } else {
               val (ix, l, r, add) =
                 splitOnChunkLimited[F](
@@ -368,10 +387,10 @@ object MultipartParser1 {
               go(remaining, ix, l, r, add)
             }
           case None =>
-            Pull.raiseError(MalformedMessageBodyFailure(""))
+            Pull.raiseError(MalformedMessageBodyFailure("Malformed Multipart ending"))
         }
       } else if (c(0) == dashByte && c(1) == dashByte) {
-        Pull.pure((cachedEmpty, cachedEmpty))
+        Pull.pure((streamEmpty, streamEmpty))
       } else {
         val (ix, l, r, add) =
           splitOnChunkLimited[F](values, 0, c, Stream.empty, Stream.empty)
@@ -407,7 +426,10 @@ object MultipartParser1 {
     }
   }
 
-  private def parseHeadersF[F[_]: Sync](strim: Stream[F, Byte]): F[Headers] = {
+  /** Take the stream of headers separated by
+    * double CRLF bytes and return the headers
+    */
+  private def parseHeaders[F[_]: Sync](strim: Stream[F, Byte]): F[Headers] = {
     def tailrecParse(s: Stream[F, Byte], headers: Headers): Pull[F, Headers, Unit] =
       splitHalf[F](CRLFBytesN, s).flatMap {
         case (l, r) =>
@@ -434,6 +456,12 @@ object MultipartParser1 {
       .fold(Headers.empty)(_ ++ _)
   }
 
+  /** Spit our `Stream[F, Byte]` into two halves.
+    * If we reach the end and the state is 0 (meaning we didn't match at all),
+    * then we return the concatenated parts of the stream.
+    *
+    * This method _always_ caps
+    */
   private def splitHalf[F[_]: Sync](
     values: Array[Byte],
     stream: Stream[F, Byte]): SplitStream[F] = {
@@ -451,11 +479,8 @@ object MultipartParser1 {
             val (ix, l, r) = splitOnChunk[F](values, state, chnk, lacc, racc)
             go(str, ix, l, r)
           case None =>
-            if (state != 0) {
-              Pull.raiseError(MalformedMessageBodyFailure("Invalid boundary - partial boundary"))
-            } else {
-              Pull.pure((lacc, racc))
-            }
+            //We got to the end, and matched on nothing.
+            Pull.pure((lacc ++ racc, streamEmpty))
         }
       }
 
@@ -464,7 +489,7 @@ object MultipartParser1 {
         val (ix, l, r) = splitOnChunk[F](values, 0, chunk, Stream.empty, Stream.empty)
         go(rest, ix, l, r)
       case None =>
-        Pull.pure((Stream.empty, Stream.empty))
+        Pull.pure((streamEmpty, streamEmpty))
     }
   }
 
