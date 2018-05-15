@@ -3,16 +3,21 @@ package com.example.quickstart
 import cats.data.Kleisli
 import cats.effect.IO
 import io.circe._
+import io.circe.generic.auto._
+import io.circe.syntax._
 import fs2._
 import org.http4s._
 import org.http4s.circe._
+import org.http4s.headers._
 import org.http4s.dsl.Http4sDsl
 import org.http4s.server.blaze.BlazeBuilder
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import cats.syntax.all._
-import org.http4s.multipart.{Boundary, Multipart}
+import org.http4s.multipart.{Boundary, Multipart, Part}
 import org.http4s.syntax.all._
+
+import scala.concurrent.Future
 
 object HelloWorldServer extends StreamApp[IO] with Http4sDsl[IO] {
   val service = HttpService[IO] {
@@ -145,31 +150,46 @@ object HelloWorldServer extends StreamApp[IO] with Http4sDsl[IO] {
   val CTwo: Kleisli[IO, Request[IO], Response[IO]] = composedBig2.orNotFound
 
   val encoderNew: EntityDecoder[IO, Multipart[IO]] =
-    MultipartParser1.decoder[IO]
+    MultipartParser2.decoder[IO]
 
   val encoderLive: EntityDecoder[IO, Multipart[IO]] =
     EntityDecoder.multipart[IO]
 
+  case class MegaTest(s: String, k: Int, l: Int)
+
   val yoloService: HttpService[IO] = HttpService[IO] {
+
+    case r @ POST -> Root / "hello" =>
+      val mp = Multipart(
+        Vector
+          .range(0, 10000)
+          .map(
+            i =>
+              Part[IO](Headers(`Content-Type`(MediaType.`application/json`)),
+                       Stream.emits(
+                         MegaTest(s"schrodingers $i", i, i + 3).asJson
+                           .toString()
+                           .getBytes()))))
+
+      Response[IO](Ok).withBody(mp).map(_.copy(headers = mp.headers))
+
     case r @ POST -> Root / "hi" =>
-      encoderNew
-        .decode(r, false)
-        .value
-        .flatMap(_.fold[IO[Multipart[IO]]](IO.raiseError, IO.pure))
-        .flatMap(
-          p =>
-            p.parts(0)
-              .body
-              .through(fs2.text.utf8Decode)
-              .compile
-              .fold("")(_ ++ _)
-              .flatMap(f => IO(println(f))))
+      r.as[Multipart[IO]]
+        .flatMap(p => IO(println(p)))
         .flatMap(_ => Ok())
+        .handleErrorWith { r: Throwable =>
+          r.printStackTrace()
+          Ok()
+        }
   }
 
   def stream(args: List[String], requestShutdown: IO[Unit]) =
     BlazeBuilder[IO]
-      .bindHttp(8080, "0.0.0.0")
+      .bindHttp(9999, "0.0.0.0")
       .mountService(yoloService, "/")
       .serve
+}
+
+object Evil {
+  def apply[A](a: => scala.concurrent.Future[A]): IO[A] = IO.fromFuture(IO(a))
 }
